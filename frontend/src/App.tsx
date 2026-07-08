@@ -16,9 +16,9 @@ const App = () => {
 
   useEffect(() => {
     // Reconnect whenever language OR reconnectKey changes
-    socketRef.current = io('http://localhost:3001', {
-      query: { language: language }
-    });
+    socketRef.current = io({
+  query: { language: language }
+});
 
     socketRef.current.on('transcript-result', (data: any) => {
       const transcriptText = data?.channel?.alternatives[0]?.transcript;
