@@ -10,7 +10,6 @@ export default function App() {
   
   const [language, setLanguage] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string>('Please select your language');
-  
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
 
   const socketRef = useRef<Socket | null>(null);
@@ -39,7 +38,6 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // FIX 1: Smart URL - uses localhost if on your laptop, uses relative path on Render
       const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const serverUrl = isLocal ? 'http://localhost:3001' : '';
 
@@ -51,21 +49,26 @@ export default function App() {
         setStatusMessage(`Connected | Mode: ${language.toUpperCase()}`);
       });
 
-      // FIX 2: Bulletproof Parsing - handles multiple data structures
+      // THE FIX: Perfected Deepgram Parser
       socketRef.current.on('transcript-result', (data: any) => {
-        console.log("Server data received:", data); // Helpful for debugging!
-        
-        // Checks standard Deepgram JSON, custom objects, or raw strings
-        const transcriptText = data?.channel?.alternatives?.[0]?.transcript || data?.text || (typeof data === 'string' ? data : '');
-        const isFinal = data?.is_final !== undefined ? data.is_final : data?.isFinal;
+        // 1. Ignore Deepgram maintenance packets (like Metadata)
+        if (data?.type !== 'Results') return;
 
-        if (transcriptText) {
-          if (isFinal) {
-            setTranscript((prev) => prev + transcriptText + ' ');
-            setInterimTranscript('');
-          } else {
-            setInterimTranscript(transcriptText);
-          }
+        // 2. Extract the text securely from Deepgram's nested structure
+        const transcriptText = data?.channel?.alternatives?.[0]?.transcript;
+
+        // 3. Ignore empty silence packets
+        if (!transcriptText || transcriptText.trim() === '') return;
+
+        // Log what is actually being heard to the console for easy debugging!
+        console.log(`🎙️ Heard: "${transcriptText}" (Final: ${data.is_final})`);
+
+        // 4. Print to the screen
+        if (data.is_final) {
+          setTranscript((prev) => prev + transcriptText + ' ');
+          setInterimTranscript('');
+        } else {
+          setInterimTranscript(transcriptText);
         }
       });
 
@@ -78,10 +81,9 @@ export default function App() {
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
-        // Fallback for different event names just in case
+        // Strict match to your backend 'audio-chunk'
         if (event.data.size > 0 && socketRef.current?.connected) {
           socketRef.current.emit('audio-chunk', event.data);
-          socketRef.current.emit('audio-stream', event.data); 
         }
       };
 
