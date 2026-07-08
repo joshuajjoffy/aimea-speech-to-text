@@ -1,66 +1,83 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
-require('dotenv').config();
-
 const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
+const dotenv = require('dotenv');
+const path = require('path');
+
+dotenv.config();
 
 const app = express();
-app.use(cors());
-
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-  }
-});
+const io = new Server(server, { cors: { origin: '*' } });
 
+// Initialize Deepgram Client
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
 io.on('connection', (socket) => {
-  // Grab the language from the React frontend
-  const requestedLanguage = socket.handshake.query.language || 'en';
-  console.log(`React Frontend connected. Language requested: ${requestedLanguage}`);
+  console.log(`[Socket] User connected: ${socket.id}`);
+  
+  // 1. Get the language the user selected (defaults to English)
+  const userLang = socket.handshake.query.language || 'en';
 
-  // Create a live connection
+  // 2. Create a FRESH Deepgram connection for this specific user
   const deepgramLive = deepgram.listen.live({
     model: 'nova-2',
-    language: requestedLanguage, // Now dynamic!
-    interim_results: true,
-    smart_format: true
+    language: userLang,
+    smart_format: true,
+    // We intentionally leave out 'encoding' so Deepgram auto-detects what the browser sends
   });
 
-  deepgramLive.on(LiveTranscriptionEvents.Open, () => {
-    console.log('Connected to Deepgram API successfully.');
-    
-    socket.on('audio-chunk', (data) => {
-      if (deepgramLive.getReadyState() === 1) { 
-        deepgramLive.send(data);
-      }
-    });
+  // 3. KeepAlive Heartbeat (Prevents the 10-second silent disconnect)
+  const keepAlive = setInterval(() => {
+    if (deepgramLive.getReadyState() === 1) {
+      deepgramLive.keepAlive();
+    }
+  }, 3000);
 
-    deepgramLive.on(LiveTranscriptionEvents.Transcript, (data) => {
+  // 4. Handle Deepgram Events
+  deepgramLive.addListener(LiveTranscriptionEvents.Open, () => {
+    console.log(`[Deepgram] Connection OPEN for user ${socket.id}`);
+    
+    // When Deepgram hears words, send them back to the React frontend
+    deepgramLive.addListener(LiveTranscriptionEvents.Transcript, (data) => {
       socket.emit('transcript-result', data);
     });
+
+    deepgramLive.addListener(LiveTranscriptionEvents.Error, (err) => {
+      console.error('[Deepgram] Error:', err);
+    });
+
+    deepgramLive.addListener(LiveTranscriptionEvents.Close, () => {
+      console.log(`[Deepgram] Connection CLOSED for user ${socket.id}`);
+      clearInterval(keepAlive);
+    });
   });
 
-  deepgramLive.on(LiveTranscriptionEvents.Error, (err) => {
-    console.error('Deepgram Error:', err);
+  // 5. When the React frontend sends audio, pass it to Deepgram
+  socket.on('audio-chunk', (chunk) => {
+    if (deepgramLive.getReadyState() === 1) {
+      deepgramLive.send(chunk);
+    }
   });
 
+  // 6. Cleanup when user clicks "Stop" or closes the browser
   socket.on('disconnect', () => {
-    deepgramLive.finish();
-    console.log('React Frontend disconnected.');
+    console.log(`[Socket] User disconnected: ${socket.id}`);
+    clearInterval(keepAlive);
+    if (deepgramLive.getReadyState() === 1) {
+      deepgramLive.finish();
+    }
   });
 });
 
-const PORT = process.env.PORT || 3001;
-const path = require('path');
+// Serve the React frontend production files
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
 });
+
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Backend is running on http://localhost:${PORT}`);
+  console.log(`[Server] Live on port ${PORT}`);
 });

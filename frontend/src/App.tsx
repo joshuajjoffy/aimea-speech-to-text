@@ -78,8 +78,8 @@ export default function App() {
         setStatusMessage('Disconnected from cloud server');
       });
 
-      const options = { mimeType: 'audio/webm' };
-      const mediaRecorder = new MediaRecorder(stream, options);
+      // Let the browser pick its native format (Fixes iPhone/Safari blocking WebM)
+      const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
