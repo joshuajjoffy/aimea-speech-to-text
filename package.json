@@ -1,0 +1,18 @@
+{
+  "name": "aimea-speech-to-text",
+  "version": "1.0.0",
+  "engines": {
+    "node": "20.x"
+  },
+"scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "socket.io": "^4.7.5",
+    "@deepgram/sdk": "4.0.0"
+  }
+}
