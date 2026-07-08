@@ -17,10 +17,12 @@ export default function App() {
   const streamRef = useRef<MediaStream | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   
+  // Theme management
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
   
+  // Auto-scroll to latest text
   useEffect(() => {
     if (windowRef.current) {
       windowRef.current.scrollTop = windowRef.current.scrollHeight;
@@ -38,32 +40,32 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const serverUrl = isLocal ? 'http://localhost:3001' : '';
+      // ---------------------------------------------------------
+      // THE FIX: Smart URL Detection for Mobile vs Laptop
+      // ---------------------------------------------------------
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      // If local, use the local backend port. If on Render, use the secure window origin.
+      const serverUrl = isLocalHost ? 'http://localhost:3001' : window.location.origin;
 
       socketRef.current = io(serverUrl, {
-        query: { language: language }
+        query: { language: language },
+        transports: ['websocket', 'polling'] // Ensures compatibility on strict mobile networks
       });
 
       socketRef.current.on('connect', () => {
-        setStatusMessage(`Connected | Mode: ${language.toUpperCase()}`);
+        setStatusMessage(`Connected securely | Mode: ${language.toUpperCase()}`);
       });
 
-      // THE FIX: Perfected Deepgram Parser
+      // Handle the text coming back from the backend
       socketRef.current.on('transcript-result', (data: any) => {
-        // 1. Ignore Deepgram maintenance packets (like Metadata)
         if (data?.type !== 'Results') return;
 
-        // 2. Extract the text securely from Deepgram's nested structure
         const transcriptText = data?.channel?.alternatives?.[0]?.transcript;
-
-        // 3. Ignore empty silence packets
         if (!transcriptText || transcriptText.trim() === '') return;
 
-        // Log what is actually being heard to the console for easy debugging!
-        console.log(`🎙️ Heard: "${transcriptText}" (Final: ${data.is_final})`);
+        console.log(`🎙️ Heard: "${transcriptText}"`);
 
-        // 4. Print to the screen
         if (data.is_final) {
           setTranscript((prev) => prev + transcriptText + ' ');
           setInterimTranscript('');
@@ -73,7 +75,7 @@ export default function App() {
       });
 
       socketRef.current.on('disconnect', () => {
-        setStatusMessage('Disconnected from server');
+        setStatusMessage('Disconnected from cloud server');
       });
 
       const options = { mimeType: 'audio/webm' };
@@ -81,7 +83,6 @@ export default function App() {
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
-        // Strict match to your backend 'audio-chunk'
         if (event.data.size > 0 && socketRef.current?.connected) {
           socketRef.current.emit('audio-chunk', event.data);
         }
@@ -93,7 +94,7 @@ export default function App() {
       setStatusMessage('Transcribing live...');
     } catch (err) {
       console.error('Error starting streams:', err);
-      setStatusMessage('Failed to access microphone');
+      setStatusMessage('Failed to access microphone. Ensure you are on HTTPS.');
     }
   };
 
