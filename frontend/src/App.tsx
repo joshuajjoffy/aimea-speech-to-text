@@ -97,30 +97,34 @@ const App = () => {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '2rem auto', padding: '1rem' }}>
-      <h1>aimea.ai Transcriber</h1>
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        <button onClick={isRecording ? stopRecording : startRecording}>
-          {isRecording ? 'Stop' : 'Start'}
-        </button>
-        
-        <button onClick={togglePause} disabled={!isRecording}>
-          {isPaused ? 'Resume' : 'Pause'}
-        </button>
-        
-        <select value={language} onChange={(e) => setLanguage(e.target.value)} disabled={isRecording}>
-          <option value="en">English</option>
-          <option value="de">German</option>
-        </select>
-        
-        {/* Clear button remains disabled while recording to prevent breaking an active stream */}
-        <button onClick={clearTranscript} disabled={isRecording}>Clear</button>
-        <button onClick={exportTranscript} disabled={!transcript}>Export</button>
-      </div>
-      <div style={{ border: '1px solid #ccc', padding: '20px', minHeight: '200px' }}>
-        {transcript} <i>{interimTranscript}</i>
-      </div>
-    </div>
+    // Inside your return statement:
+<div className="container">
+  <h1>aimea.ai Transcriber</h1>
+  
+  <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+    <button className={`btn ${isRecording ? 'btn-secondary' : 'btn-primary'}`} 
+            onClick={isRecording ? stopRecording : startRecording}>
+      {isRecording ? 'Stop' : 'Start'}
+    </button>
+    
+    {/* Add the 'btn' and 'btn-secondary' class to your other buttons too */}
+    <button className="btn btn-secondary" onClick={togglePause} disabled={!isRecording}>
+      {isPaused ? 'Resume' : 'Pause'}
+    </button>
+    
+    <select className="btn btn-secondary" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={isRecording}>
+      <option value="en">English</option>
+      <option value="de">German</option>
+    </select>
+    
+    <button className="btn btn-secondary" onClick={clearTranscript} disabled={isRecording}>Clear</button>
+    <button className="btn btn-primary" onClick={exportTranscript} disabled={!transcript}>Export</button>
+  </div>
+
+  <div className="transcript-box">
+    {transcript} <i>{interimTranscript}</i>
+  </div>
+</div>
   );
 };
 
