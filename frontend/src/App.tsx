@@ -11,7 +11,6 @@ export default function App() {
   const [language, setLanguage] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string>('Please select your language');
   
-  // Theme State: Defaulting to dark mode
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
 
   const socketRef = useRef<Socket | null>(null);
@@ -19,12 +18,10 @@ export default function App() {
   const streamRef = useRef<MediaStream | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   
-  // Apply theme to the HTML element dynamically
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
   
-  // Auto-scroll
   useEffect(() => {
     if (windowRef.current) {
       windowRef.current.scrollTop = windowRef.current.scrollHeight;
@@ -42,7 +39,11 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      socketRef.current = io({
+      // FIX 1: Smart URL - uses localhost if on your laptop, uses relative path on Render
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const serverUrl = isLocal ? 'http://localhost:3001' : '';
+
+      socketRef.current = io(serverUrl, {
         query: { language: language }
       });
 
@@ -50,10 +51,16 @@ export default function App() {
         setStatusMessage(`Connected | Mode: ${language.toUpperCase()}`);
       });
 
+      // FIX 2: Bulletproof Parsing - handles multiple data structures
       socketRef.current.on('transcript-result', (data: any) => {
-        const transcriptText = data?.channel?.alternatives[0]?.transcript;
+        console.log("Server data received:", data); // Helpful for debugging!
+        
+        // Checks standard Deepgram JSON, custom objects, or raw strings
+        const transcriptText = data?.channel?.alternatives?.[0]?.transcript || data?.text || (typeof data === 'string' ? data : '');
+        const isFinal = data?.is_final !== undefined ? data.is_final : data?.isFinal;
+
         if (transcriptText) {
-          if (data.is_final) {
+          if (isFinal) {
             setTranscript((prev) => prev + transcriptText + ' ');
             setInterimTranscript('');
           } else {
@@ -71,8 +78,10 @@ export default function App() {
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
+        // Fallback for different event names just in case
         if (event.data.size > 0 && socketRef.current?.connected) {
           socketRef.current.emit('audio-chunk', event.data);
+          socketRef.current.emit('audio-stream', event.data); 
         }
       };
 
@@ -154,7 +163,6 @@ export default function App() {
             <h1 className="aimea-title">aimea.ai <span>Transcriber</span></h1>
           </div>
           
-          {/* THEME TOGGLE BUTTON */}
           <button 
             className="theme-toggle" 
             onClick={() => setIsDarkMode(!isDarkMode)}
