@@ -1,18 +1,63 @@
+/* LIGHT THEME (Default Variables) */
 :root {
   --aimea-green: #00A86B;
   --aimea-green-hover: #008F5A;
-  --bg-slate: #F9FAFB;
+  
+  --bg-color: #F9FAFB;
+  --card-bg: #ffffff;
   --border-color: #E5E7EB;
   --text-main: #1F2937;
   --text-muted: #6B7280;
+  
+  --btn-sec-bg: #ffffff;
+  --btn-sec-border: #E5E7EB;
+  --btn-sec-hover: #F3F4F6;
+  
+  --select-bg: #ffffff;
+  --select-text: #1F2937;
+  --select-opt-bg: #ffffff;
+  
+  --window-bg: #FAFAFA;
+  --status-bg: #F3F4F6;
+  
+  --danger-bg: #FEF2F2;
+  --danger-text: #DC2626;
+  --danger-border: #FEE2E2;
+  --danger-hover: #FEE2E2;
+}
+
+/* DARK THEME (Overrides) */
+[data-theme="dark"] {
+  --bg-color: #0B0F19;
+  --card-bg: #161B26;
+  --border-color: #242C3D;
+  --text-main: #F9FAFB;
+  --text-muted: #9CA3AF;
+  
+  --btn-sec-bg: #1F2635;
+  --btn-sec-border: #2E374A;
+  --btn-sec-hover: #2E374A;
+  
+  --select-bg: #1F2635;
+  --select-text: #FFFFFF;
+  --select-opt-bg: #161B26;
+  
+  --window-bg: #0F131C;
+  --status-bg: #1F2635;
+  
+  --danger-bg: #2D1F24;
+  --danger-text: #F87171;
+  --danger-border: #44242B;
+  --danger-hover: #44242B;
 }
 
 body {
   margin: 0;
-  background-color: var(--bg-slate);
+  background-color: var(--bg-color);
   color: var(--text-main);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .app-wrapper {
@@ -20,39 +65,44 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  padding: 20px;
+  padding: 16px;
   box-sizing: border-box;
+  background-color: var(--bg-color);
+  transition: background-color 0.3s ease;
 }
 
 .aimea-container {
   width: 100%;
-  max-width: 760px;
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  max-width: 480px;
+  background: var(--card-bg);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.05);
   border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
+/* Header & Toggle Button */
 .aimea-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   border-bottom: 1px solid var(--border-color);
-  padding-bottom: 20px;
+  padding-bottom: 16px;
 }
 
 .aimea-logo-area {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .aimea-title {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 600;
   margin: 0;
+  color: var(--text-main);
   letter-spacing: -0.025em;
 }
 
@@ -60,7 +110,25 @@ body {
   color: var(--aimea-green);
 }
 
-/* Visual Pulse Indicator */
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: var(--text-main);
+  transition: all 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background-color: var(--status-bg);
+}
+
 @keyframes pulse {
   0% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.2); opacity: 0.5; }
@@ -75,38 +143,66 @@ body {
   animation: pulse 1.5s infinite ease-in-out;
 }
 
-/* Control Row Styling */
-.control-panel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 24px;
-  align-items: center;
+.status-bar {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  text-align: center;
+  background: var(--status-bg);
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background-color 0.3s ease;
 }
 
-/* Button & Select Framework */
+/* Control Panel */
+.control-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.control-panel .aimea-btn:first-child,
+.control-panel .aimea-select {
+  grid-column: span 2;
+}
+
 .aimea-btn, .aimea-select {
   font-family: 'Inter', sans-serif;
   font-size: 0.875rem;
   font-weight: 600;
-  padding: 10px 18px;
-  border-radius: 8px;
+  padding: 12px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
   cursor: pointer;
   transition: all 0.2s ease;
-  display: inline-flex;
+  text-align: center;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .aimea-select {
-  background-color: #ffffff;
-  padding-right: 32px;
+  color: var(--select-text) !important;
+  background-color: var(--select-bg) !important;
+  border-color: var(--border-color);
   appearance: none;
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 16px;
+  background-position: right 14px center;
+  background-size: 14px;
+  padding-right: 36px;
+}
+
+[data-theme="dark"] .aimea-select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+.aimea-select option {
+  background-color: var(--select-opt-bg) !important;
+  color: var(--select-text) !important;
 }
 
 .btn-primary {
@@ -117,27 +213,26 @@ body {
 
 .btn-primary:hover:not(:disabled) {
   background-color: var(--aimea-green-hover);
-  border-color: var(--aimea-green-hover);
 }
 
 .btn-secondary {
-  background-color: #ffffff;
+  background-color: var(--btn-sec-bg);
   color: var(--text-main);
+  border-color: var(--btn-sec-border);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: #F3F4F6;
-  border-color: #D1D5DB;
+  background-color: var(--btn-sec-hover);
 }
 
 .btn-danger {
-  background-color: #FEF2F2;
-  color: #DC2626;
-  border-color: #FEE2E2;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: var(--danger-border);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: #FEE2E2;
+  background-color: var(--danger-hover);
 }
 
 .aimea-btn:disabled, .aimea-select:disabled {
@@ -145,54 +240,45 @@ body {
   cursor: not-allowed;
 }
 
-/* Status Info Text */
-.status-bar {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  margin-bottom: 16px;
-}
-
-/* Live Text Display Window */
+/* Transcript Window */
 .transcript-window {
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 24px;
-  min-height: 280px;
-  max-height: 450px;
+  border-radius: 14px;
+  padding: 20px;
+  min-height: 240px;
+  max-height: 380px;
   overflow-y: auto;
-  background-color: #FAFAFA;
-  line-height: 1.7;
-  font-size: 1rem;
+  background-color: var(--window-bg);
+  line-height: 1.6;
+  font-size: 0.95rem;
   color: var(--text-main);
-  position: relative;
+  transition: background-color 0.3s ease;
 }
 
 .interim-text {
   color: var(--text-muted);
   font-style: italic;
-  border-bottom: 2px dashed #D1D5DB;
 }
 
-/* Empty State Window View */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 240px;
+  height: 200px;
   text-align: center;
   color: var(--text-muted);
 }
 
 .empty-state svg {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 16px;
-  stroke: #9CA3AF;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 12px;
+  stroke: var(--text-muted);
+  opacity: 0.5;
 }
 
 .empty-state p {
   margin: 4px 0;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
