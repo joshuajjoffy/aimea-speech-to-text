@@ -17,12 +17,10 @@ export default function App() {
   const streamRef = useRef<MediaStream | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   
-  // Theme management
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
   
-  // Auto-scroll to latest text
   useEffect(() => {
     if (windowRef.current) {
       windowRef.current.scrollTop = windowRef.current.scrollHeight;
@@ -40,24 +38,19 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // ---------------------------------------------------------
-      // THE FIX: Smart URL Detection for Mobile vs Laptop
-      // ---------------------------------------------------------
       const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      
-      // If local, use the local backend port. If on Render, use the secure window origin.
       const serverUrl = isLocalHost ? 'http://localhost:3001' : window.location.origin;
 
       socketRef.current = io(serverUrl, {
         query: { language: language },
-        transports: ['websocket', 'polling'] // Ensures compatibility on strict mobile networks
+        // THE FIX: Bypasses HTTP Polling, forces direct binary pipe
+        transports: ['websocket'] 
       });
 
       socketRef.current.on('connect', () => {
         setStatusMessage(`Connected securely | Mode: ${language.toUpperCase()}`);
       });
 
-      // Handle the text coming back from the backend
       socketRef.current.on('transcript-result', (data: any) => {
         if (data?.type !== 'Results') return;
 
@@ -78,8 +71,16 @@ export default function App() {
         setStatusMessage('Disconnected from cloud server');
       });
 
-      // Let the browser pick its native format (Fixes iPhone/Safari blocking WebM)
-      const mediaRecorder = new MediaRecorder(stream);
+      // THE CODEC FIX: Smart detection for Laptops vs iPhones
+      let mimeType;
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      }
+      
+      const options = mimeType ? { mimeType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
