@@ -10,7 +10,6 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
-
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
 io.on('connection', (socket) => {
@@ -22,12 +21,6 @@ io.on('connection', (socket) => {
     language: userLang,
     smart_format: true,
   });
-
-  const keepAlive = setInterval(() => {
-    if (deepgramLive.getReadyState() === 1) {
-      deepgramLive.keepAlive();
-    }
-  }, 3000);
 
   deepgramLive.addListener(LiveTranscriptionEvents.Open, () => {
     console.log(`[Deepgram] Connection OPEN for user ${socket.id}`);
@@ -42,26 +35,24 @@ io.on('connection', (socket) => {
 
     deepgramLive.addListener(LiveTranscriptionEvents.Close, () => {
       console.log(`[Deepgram] Connection CLOSED for user ${socket.id}`);
-      clearInterval(keepAlive);
     });
   });
 
-  // THE TRACKER: See the audio arriving!
   let chunkCount = 0;
   socket.on('audio-chunk', (chunk) => {
     chunkCount++;
     if (chunkCount % 10 === 0) {
-      console.log(`[Audio Pulse] Received 10 audio chunks from ${socket.id}`);
+      console.log(`[Audio Pulse] Received 10 chunks. (Is Buffer? ${Buffer.isBuffer(chunk)})`);
     }
     
     if (deepgramLive.getReadyState() === 1) {
-      deepgramLive.send(chunk); // Now guaranteed to be pure binary
+      // THE FIX: Force the chunk into a pure Node.js Buffer before sending
+      deepgramLive.send(Buffer.from(chunk));
     }
   });
 
   socket.on('disconnect', () => {
     console.log(`[Socket] User disconnected: ${socket.id}`);
-    clearInterval(keepAlive);
     if (deepgramLive.getReadyState() === 1) {
       deepgramLive.finish();
     }
