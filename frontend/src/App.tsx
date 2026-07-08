@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import './App.css';
 
 export default function App() {
@@ -10,12 +10,13 @@ export default function App() {
   const [language, setLanguage] = useState<string>('en');
   const [statusMessage, setStatusMessage] = useState<string>('Ready to transcribe');
 
-  const socketRef = useRef<any>(null);
+  const socketRef = useRef<Socket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
+  
   // Auto scroll down as text aggregates
   const windowRef = useRef<HTMLDivElement>(null);
+  
   useEffect(() => {
     if (windowRef.current) {
       windowRef.current.scrollTop = windowRef.current.scrollHeight;
@@ -28,7 +29,7 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // FIX: Connecting relatively ensures socket works on both laptop and mobile
+      // Connecting relatively ensures socket works on both laptop and mobile
       socketRef.current = io({
         query: { language: language }
       });
@@ -37,12 +38,16 @@ export default function App() {
         setStatusMessage('Connected to live transcription server');
       });
 
-      socketRef.current.on('transcript-data', (data: any) => {
-        if (data.isFinal) {
-          setTranscript((prev) => prev + ' ' + data.text);
-          setInterimTranscript('');
-        } else {
-          setInterimTranscript(data.text);
+      // RESTORED: Using your original working event name and parsing logic
+      socketRef.current.on('transcript-result', (data: any) => {
+        const transcriptText = data?.channel?.alternatives[0]?.transcript;
+        if (transcriptText) {
+          if (data.is_final) {
+            setTranscript((prev) => prev + transcriptText + ' ');
+            setInterimTranscript('');
+          } else {
+            setInterimTranscript(transcriptText);
+          }
         }
       });
 
@@ -55,12 +60,12 @@ export default function App() {
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && socketRef.current?.connected && !isPaused) {
-          socketRef.current.emit('audio-stream', event.data);
+        // RESTORED: Using your original 'audio-chunk' event name
+        if (event.data.size > 0 && socketRef.current?.connected) {
+          socketRef.current.emit('audio-chunk', event.data);
         }
       };
 
-      // Stream data packets every 250ms to keep live latency tight
       mediaRecorder.start(250);
       setIsRecording(true);
       setIsPaused(false);
@@ -87,15 +92,20 @@ export default function App() {
     setStatusMessage('Session ended');
   };
 
+  // RESTORED: Your original, clever track-disabling pause logic
   const togglePause = () => {
-    if (!isRecording) return;
-    if (isPaused) {
-      setIsPaused(false);
-      setStatusMessage('Transcribing live...');
-    } else {
-      setIsPaused(true);
-      setInterimTranscript('');
-      setStatusMessage('Transcription paused');
+    if (streamRef.current) {
+      const audioTracks = streamRef.current.getAudioTracks();
+      
+      if (isPaused) {
+        audioTracks.forEach(track => track.enabled = true);
+        setIsPaused(false);
+        setStatusMessage('Transcribing live...');
+      } else {
+        audioTracks.forEach(track => track.enabled = false);
+        setIsPaused(true);
+        setStatusMessage('Transcription paused');
+      }
     }
   };
 
