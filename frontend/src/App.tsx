@@ -6,7 +6,6 @@ export default function App() {
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
   const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [isPaused, setIsPaused] = useState<boolean>(false);
   const [language, setLanguage] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string>('Select language to start');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
@@ -54,7 +53,6 @@ export default function App() {
 
       // Robust Transcript Parsing
       socketRef.current.on('transcript-result', (data: any) => {
-        // Deepgram sends metadata events too, we only want Results
         if (data?.type !== 'Results') return;
 
         const transcriptText = data?.channel?.alternatives?.[0]?.transcript;
@@ -73,7 +71,6 @@ export default function App() {
 
       mediaRecorder.ondataavailable = async (event) => {
         if (event.data.size > 0 && socketRef.current?.connected) {
-          // Convert Blob to ArrayBuffer for pure binary transmission
           const arrayBuffer = await event.data.arrayBuffer();
           socketRef.current.emit('audio-chunk', arrayBuffer);
         }
