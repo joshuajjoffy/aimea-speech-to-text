@@ -6,21 +6,17 @@ export default function App() {
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
   const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [language, setLanguage] = useState<string>('');
-  const [statusMessage, setStatusMessage] = useState<string>('Select language to start');
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [language, setLanguage] = useState<string>('en');
+  const [statusMessage, setStatusMessage] = useState<string>('Ready to transcribe');
 
   const socketRef = useRef<Socket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  
+  // Auto scroll down as text aggregates
   const windowRef = useRef<HTMLDivElement>(null);
-
-  // Apply Dark Mode
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
-
-  // Auto-scroll logic
+  
   useEffect(() => {
     if (windowRef.current) {
       windowRef.current.scrollTop = windowRef.current.scrollHeight;
@@ -28,107 +24,199 @@ export default function App() {
   }, [transcript, interimTranscript]);
 
   const startRecording = async () => {
-    if (!language) {
-      setStatusMessage('Please select a language first!');
-      return;
-    }
-
     try {
-      setStatusMessage('Requesting microphone...');
+      setStatusMessage('Requesting mic permissions...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Smart URL connection
-      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const serverUrl = isLocalHost ? 'http://localhost:3001' : window.location.origin;
-
-      socketRef.current = io(serverUrl, {
-        query: { language: language },
-        transports: ['websocket']
+      // Connecting relatively ensures socket works on both laptop and mobile
+      socketRef.current = io({
+        query: { language: language }
       });
 
       socketRef.current.on('connect', () => {
-        setStatusMessage('Connected. Listening...');
+        setStatusMessage('Connected to live transcription server');
       });
 
-      // Robust Transcript Parsing
+      // RESTORED: Using your original working event name and parsing logic
       socketRef.current.on('transcript-result', (data: any) => {
-        if (data?.type !== 'Results') return;
-
-        const transcriptText = data?.channel?.alternatives?.[0]?.transcript;
-        if (!transcriptText || transcriptText.trim() === '') return;
-
-        if (data.is_final) {
-          setTranscript((prev) => prev + transcriptText + ' ');
-          setInterimTranscript('');
-        } else {
-          setInterimTranscript(transcriptText);
+        const transcriptText = data?.channel?.alternatives[0]?.transcript;
+        if (transcriptText) {
+          if (data.is_final) {
+            setTranscript((prev) => prev + transcriptText + ' ');
+            setInterimTranscript('');
+          } else {
+            setInterimTranscript(transcriptText);
+          }
         }
       });
 
-      const mediaRecorder = new MediaRecorder(stream);
+      socketRef.current.on('disconnect', () => {
+        setStatusMessage('Disconnected from server');
+      });
+
+      const options = { mimeType: 'audio/webm' };
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = async (event) => {
+      mediaRecorder.ondataavailable = (event) => {
+        // RESTORED: Using your original 'audio-chunk' event name
         if (event.data.size > 0 && socketRef.current?.connected) {
-          const arrayBuffer = await event.data.arrayBuffer();
-          socketRef.current.emit('audio-chunk', arrayBuffer);
+          socketRef.current.emit('audio-chunk', event.data);
         }
       };
 
       mediaRecorder.start(250);
       setIsRecording(true);
-      setStatusMessage('Recording...');
+      setIsPaused(false);
+      setStatusMessage('Transcribing live...');
     } catch (err) {
-      console.error(err);
-      setStatusMessage('Microphone access denied.');
+      console.error('Error starting streams:', err);
+      setStatusMessage('Failed to access microphone or connect');
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current) mediaRecorderRef.current.stop();
-    if (streamRef.current) streamRef.current.getTracks().forEach((track) => track.stop());
-    if (socketRef.current) socketRef.current.disconnect();
-    
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
     setIsRecording(false);
-    setLanguage('');
-    setStatusMessage('Session ended.');
+    setIsPaused(false);
+    setInterimTranscript('');
+    setStatusMessage('Session ended');
+  };
+
+  // RESTORED: Your original, clever track-disabling pause logic
+  const togglePause = () => {
+    if (streamRef.current) {
+      const audioTracks = streamRef.current.getAudioTracks();
+      
+      if (isPaused) {
+        audioTracks.forEach(track => track.enabled = true);
+        setIsPaused(false);
+        setStatusMessage('Transcribing live...');
+      } else {
+        audioTracks.forEach(track => track.enabled = false);
+        setIsPaused(true);
+        setStatusMessage('Transcription paused');
+      }
+    }
+  };
+
+  const clearTranscript = () => {
+    setTranscript('');
+    setInterimTranscript('');
+    setStatusMessage('Cleared transcript');
+  };
+
+  const copyToClipboard = () => {
+    if (!transcript) return;
+    navigator.clipboard.writeText(transcript.trim());
+    setStatusMessage('Copied to clipboard!');
+    setTimeout(() => setStatusMessage(isRecording ? 'Transcribing live...' : 'Session ended'), 2000);
+  };
+
+  const exportTranscript = () => {
+    if (!transcript) return;
+    const element = document.createElement("a");
+    const file = new Blob([transcript.trim()], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `aimea-transcript-${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    setStatusMessage('Exported transcript file');
   };
 
   return (
     <div className="app-wrapper">
       <div className="aimea-container">
+        
         <header className="aimea-header">
           <div className="aimea-logo-area">
-            {isRecording && <div className="pulse-dot"></div>}
+            {isRecording && !isPaused && <div className="pulse-dot"></div>}
             <h1 className="aimea-title">aimea.ai <span>Transcriber</span></h1>
           </div>
-          <button className="theme-toggle" onClick={() => setIsDarkMode(!isDarkMode)}>
-            {isDarkMode ? '☀️' : '🌙'}
-          </button>
         </header>
 
-        <div className="status-bar">{statusMessage}</div>
+        <div className="status-bar">
+          Status: {statusMessage}
+        </div>
 
         <div className="control-panel">
           <button 
             className={`aimea-btn ${isRecording ? 'btn-secondary' : 'btn-primary'}`}
             onClick={isRecording ? stopRecording : startRecording}
           >
-            {isRecording ? 'Stop' : 'Start Recording'}
+            {isRecording ? 'Stop Session' : 'Start Recording'}
           </button>
 
-          <select className="aimea-select" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={isRecording}>
-            <option value="" disabled>-- Select Language --</option>
-            <option value="en">English</option>
-            <option value="de">German</option>
+          <button 
+            className="aimea-btn btn-secondary" 
+            onClick={togglePause} 
+            disabled={!isRecording}
+          >
+            {isPaused ? 'Resume' : 'Pause'}
+          </button>
+
+          <select 
+            className="aimea-select"
+            value={language} 
+            onChange={(e) => setLanguage(e.target.value)} 
+            disabled={isRecording}
+          >
+            <option value="en">English (US/UK)</option>
+            <option value="de">German (Deutsch)</option>
           </select>
+
+          <button 
+            className="aimea-btn btn-danger" 
+            onClick={clearTranscript} 
+            disabled={isRecording || !transcript}
+          >
+            Clear
+          </button>
+
+          <button 
+            className="aimea-btn btn-secondary" 
+            onClick={copyToClipboard} 
+            disabled={!transcript}
+          >
+            Copy Text
+          </button>
+
+          <button 
+            className="aimea-btn btn-primary" 
+            onClick={exportTranscript} 
+            disabled={!transcript}
+          >
+            Export TXT
+          </button>
         </div>
 
         <div className="transcript-window" ref={windowRef}>
-          {transcript}
-          <span className="interim-text">{interimTranscript}</span>
+          {transcript || interimTranscript ? (
+            <>
+              {transcript}
+              {interimTranscript && <span className="interim-text"> {interimTranscript}</span>}
+            </>
+          ) : (
+            <div className="empty-state">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z" />
+              </svg>
+              <p>No audio transcription detected yet.</p>
+              <p style={{ fontSize: '0.85rem' }}>Select your language and tap <b>Start Recording</b>.</p>
+            </div>
+          )}
         </div>
+
       </div>
     </div>
   );

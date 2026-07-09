@@ -1,70 +1,68 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
-const dotenv = require('dotenv');
-const path = require('path');
+const cors = require('cors');
+require('dotenv').config();
 
-dotenv.config();
+const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 
 const app = express();
+app.use(cors());
+
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  cors: {
+    origin: "*", 
+  }
+});
+
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
 io.on('connection', (socket) => {
-  console.log(`[Socket] User connected: ${socket.id}`);
-  const userLang = socket.handshake.query.language || 'en';
+  const requestedLanguage = socket.handshake.query.language || 'en';
+  console.log(`Frontend connected. Language: ${requestedLanguage}`);
 
+  // Create live connection
   const deepgramLive = deepgram.listen.live({
     model: 'nova-2',
-    language: userLang,
-    smart_format: true,
+    language: requestedLanguage,
+    interim_results: true,
+    smart_format: true
   });
 
-  deepgramLive.addListener(LiveTranscriptionEvents.Open, () => {
-    console.log(`[Deepgram] Connection OPEN for user ${socket.id}`);
-    
-    deepgramLive.addListener(LiveTranscriptionEvents.Transcript, (data) => {
-      socket.emit('transcript-result', data);
-    });
-
-    deepgramLive.addListener(LiveTranscriptionEvents.Error, (err) => {
-      console.error('[Deepgram] Error:', err);
-    });
-
-    deepgramLive.addListener(LiveTranscriptionEvents.Close, () => {
-      console.log(`[Deepgram] Connection CLOSED for user ${socket.id}`);
-    });
-  });
-
-  let chunkCount = 0;
-  socket.on('audio-chunk', (chunk) => {
-    chunkCount++;
-    if (chunkCount % 10 === 0) {
-      console.log(`[Audio Pulse] Received 10 chunks. (Is Buffer? ${Buffer.isBuffer(chunk)})`);
-    }
-    
-    if (deepgramLive.getReadyState() === 1) {
-      // THE FIX: Force the chunk into a pure Node.js Buffer before sending
-      deepgramLive.send(Buffer.from(chunk));
+  // 1. Listen for audio immediately
+  socket.on('audio-chunk', (data) => {
+    if (deepgramLive.getReadyState() === 1) { 
+      deepgramLive.send(data);
     }
   });
 
+  // 2. Handle transcript results
+  deepgramLive.on(LiveTranscriptionEvents.Transcript, (data) => {
+    socket.emit('transcript-result', data);
+  });
+
+  // 3. Handle errors
+  deepgramLive.on(LiveTranscriptionEvents.Error, (err) => {
+    console.error('Deepgram Error:', err);
+  });
+
+  // 4. Cleanup
   socket.on('disconnect', () => {
-    console.log(`[Socket] User disconnected: ${socket.id}`);
-    if (deepgramLive.getReadyState() === 1) {
-      deepgramLive.finish();
-    }
+    deepgramLive.finish();
+    console.log('Frontend disconnected.');
   });
-});
-
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3001;
+const path = require('path');
+// Serve the built frontend files
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// Send all other requests to the React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
+});
 server.listen(PORT, () => {
-  console.log(`[Server] Live on port ${PORT}`);
+  console.log(`Backend is running on http://localhost:${PORT}`);
 });
